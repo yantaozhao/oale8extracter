@@ -3,6 +3,7 @@
 
 import getopt
 import os.path
+import re
 from bs4 import BeautifulSoup
 
 # https://github.com/mmjang/mdict-query
@@ -29,6 +30,7 @@ OPTIONS:
 
 idxBuilder = None
 
+
 def extractSentence(w):
     global idxBuilder
     if w is None or len(w) == 0 or idxBuilder is None:
@@ -45,13 +47,15 @@ def extractSentence(w):
         sentenceZh = group.find_all('span', 'oalecd8e_chn')
         if len(sentenceEn) == 0 or len(sentenceZh) == 0:
             continue
-        return [sentenceEn[0].get_text().replace('\t', ' ').strip(), sentenceZh[0].get_text().replace('\t', ' ').strip()]
+        return [sentenceEn[0].get_text().replace('\t', ' ').strip(),
+                sentenceZh[0].get_text().replace('\t', ' ').strip()]
     return None
 
 
 def main():
     fileIn = 'input.txt'
-    fileOut = 'output.txt'
+    fileOutTxt = 'output.txt'
+    fileOutHtml = None
     # parse command line args
     try:
         opts, args = getopt.getopt(sys.argv[1:], 'hi:o:', ['help'])
@@ -62,15 +66,17 @@ def main():
         if o == '-i':
             fileIn = a
         elif o == '-o':
-            fileOut = a
+            fileOutTxt = a
         elif o in ('-h', '--help'):
             usage()
             sys.exit()
+    fileOutHtml = fileOutTxt + '.html'
 
     global idxBuilder
     idxBuilder = IndexBuilder('C:/Users/DELL/Desktop/hello/Oxford+Advanced+Learner+English-Chinese+Dictionary+8th+Edition.mdx')
+
     # r/w files
-    with open(fileIn, 'r') as fdIn, open(fileOut, 'w+', encoding='utf-8') as fdOut:
+    with open(fileIn, 'r') as fdIn, open(fileOutTxt, 'w+', encoding='utf-8') as fdOutTxt, open(fileOutHtml, 'w+', encoding='utf-8') as fdOutHtml:
         # words = fdIn.readlines()
         words = [w for w in [line.replace('\t', ' ').strip() for line in fdIn] if len(w) > 0]
         failWords = []
@@ -78,20 +84,25 @@ def main():
         for word in words:
             result = extractSentence(word)
             if result is not None:
-                wordEnZhLine = word
+                wordEnZhLineTxt = word
+                wordEnZhLineHtml = '<p> ' + '<span style="color:#c00000"><strong>' + word + '</strong></span>'
                 for res in result:
-                    wordEnZhLine += '\t' + res
-                wordEnZhLine += '\n'
-                fdOut.write(wordEnZhLine)
+                    wordEnZhLineTxt += '\t' + res
+                    wordEnZhLineHtml += '<br/>' + re.sub(word, '<strong>\g<0></strong>', res, flags=re.IGNORECASE)
+                wordEnZhLineTxt += '\n'
+                wordEnZhLineHtml += '<br/> </p>\n'
+                fdOutTxt.write(wordEnZhLineTxt)
+                fdOutHtml.write(wordEnZhLineHtml)
             else:
                 failWords.append(word)
                 print('[FAIL] ' + word)
 
         if len(failWords) > 0:
-            with open(fileOut + '.fail', 'w+', encoding='utf-8') as fdFail:
+            with open(fileOutTxt + '.fail', 'w+', encoding='utf-8') as fdFailTxt:
                 for word in failWords:
-                    fdFail.write(word + '\n')
-    print("result: " + fileOut)
+                    fdFailTxt.write(word + '\n')
+    # done
+    print("result: " + fileOutTxt + ' / ' + fileOutHtml)
 
 
 if __name__ == '__main__':
