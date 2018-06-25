@@ -21,14 +21,15 @@ SYNOPSIS:
 {scriptname} [-i input.txt] [-o output.txt]
 
 OPTIONS:
--i        : file of word list
--o        : result file
--h  --help: print this help and exit
+-i [input.txt]   : file of word list
+-o [output.txt]  : result file. Default in one file, except `-b` used.
+-b  --break-file : break into files by leading letter
+-h  --help       : print this help and exit
 """
     print(hlp)
 
 
-idxBuilder = None
+idxBuilder = None  # global variable
 
 
 def extractSentence(w):
@@ -54,11 +55,11 @@ def extractSentence(w):
 
 def main():
     fileIn = 'input.txt'
-    fileOutTxt = 'output.txt'
-    fileOutHtml = None
+    fileOut = ('output', '.txt')
+    breakFileFlag = False
     # parse command line args
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'hi:o:', ['help'])
+        opts, args = getopt.getopt(sys.argv[1:], 'hbi:o:', ['help', 'break-file'])
     except getopt.GetoptError as err:
         print('Error: %s!' % err)
         sys.exit(2)
@@ -66,24 +67,59 @@ def main():
         if o == '-i':
             fileIn = a
         elif o == '-o':
-            fileOutTxt = a
+            fileOut = os.path.splitext(a)
+            if len(fileOut[1]) == 0:
+                print('Error: Regular name of output file required! For example: output.txt')
+                sys.exit()
+        elif o in ('-b', '--break-file'):
+            breakFileFlag = True
         elif o in ('-h', '--help'):
             usage()
             sys.exit()
-    fileOutHtml = fileOutTxt + '.html'
 
     global idxBuilder
     idxBuilder = IndexBuilder('C:/Users/DELL/Desktop/hello/Oxford+Advanced+Learner+English-Chinese+Dictionary+8th+Edition.mdx')
 
-    # r/w files
-    with open(fileIn, 'r') as fdIn, open(fileOutTxt, 'w+', encoding='utf-8') as fdOutTxt, open(fileOutHtml, 'w+', encoding='utf-8') as fdOutHtml:
+    # read/write files
+    with open(fileIn, 'r') as fdIn:
         # words = fdIn.readlines()
         words = [w for w in [line.replace('\t', ' ').strip() for line in fdIn] if len(w) > 0]
         words = list(set(words))
-        words.sort()
+        words.sort(key=str.lower)
         failWords = []
+        print("Total words: %d." % len(words))
+
+        # output:
+        fileOutTxt = None
+        fdOutTxt = None
+        fileOutHtml = None
+        fdOutHtml = None
+        rememberedLeadingLetter = None
+        alreadyOpenedFlag = False
 
         for word in words:
+            # open right file
+            if breakFileFlag:
+                if rememberedLeadingLetter != word[0].lower():
+                    if fdOutTxt is not None:
+                        if not fdOutTxt.closed:
+                            fdOutTxt.close()
+                    if fdOutHtml is not None:
+                        if not fdOutHtml.closed:
+                            fdOutHtml.close()
+                    rememberedLeadingLetter = word[0].lower()
+                    fileOutTxt = fileOut[0] + '_' + rememberedLeadingLetter + fileOut[1]
+                    fileOutHtml = fileOut[0] + '_' + rememberedLeadingLetter + '.html'
+                    fdOutTxt = open(fileOutTxt, mode='w+', encoding='utf-8')
+                    fdOutHtml = open(fileOutHtml, mode='w+', encoding='utf-8')
+            elif not alreadyOpenedFlag:
+                fileOutTxt = fileOut[0] + fileOut[1]
+                fileOutHtml = fileOut[0] + '.html'
+                fdOutTxt = open(fileOutTxt, mode='w+', encoding='utf-8')
+                fdOutHtml = open(fileOutHtml, mode='w+', encoding='utf-8')
+                alreadyOpenedFlag = True
+
+            # lookup word
             result = extractSentence(word)
             if result is not None:
                 wordEnZhLineTxt = word
@@ -99,12 +135,20 @@ def main():
                 failWords.append(word)
                 print('[FAIL] ' + word)
 
+        else:
+            if fdOutTxt is not None:
+                if not fdOutTxt.closed:
+                    fdOutTxt.close()
+            if fdOutHtml is not None:
+                if not fdOutHtml.closed:
+                    fdOutHtml.close()
+
         if len(failWords) > 0:
-            with open(fileOutTxt + '.fail', 'w+', encoding='utf-8') as fdFailTxt:
+            with open(fileOut[0] + fileOut[1] + '.fail', 'w+', encoding='utf-8') as fdFailTxt:
                 for word in failWords:
                     fdFailTxt.write(word + '\n')
     # done
-    print("result: " + fileOutTxt + ' / ' + fileOutHtml)
+    print("result: " + fileOut[0] + fileOut[1] + ' / ' + fileOut[0] + '.html')
 
 
 if __name__ == '__main__':
