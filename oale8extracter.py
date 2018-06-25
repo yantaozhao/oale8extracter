@@ -79,6 +79,8 @@ def main():
     with open(fileIn, 'r') as fdIn, open(fileOutTxt, 'w+', encoding='utf-8') as fdOutTxt, open(fileOutHtml, 'w+', encoding='utf-8') as fdOutHtml:
         # words = fdIn.readlines()
         words = [w for w in [line.replace('\t', ' ').strip() for line in fdIn] if len(w) > 0]
+        words = list(set(words))
+        words.sort()
         failWords = []
 
         for word in words:
