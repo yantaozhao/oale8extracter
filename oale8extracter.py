@@ -22,9 +22,28 @@ SYNOPSIS:
 
 OPTIONS:
 -i [input.txt]   : file of word list
--o [output.txt]  : result file. Default in one file, except `-b` used.
+-o [output.txt]  : result file. Default in one file, unless `-b` used.
 -b  --break-file : break into files by leading letter
 -h  --help       : print this help and exit
+
+
+SEE ALSO:
+Use calibre to build e-book.
+https://manual.calibre-ebook.com/faq.html#how-do-i-convert-a-collection-of-html-files-in-a-specific-order
+```html
+<html>
+<head> <title>The title</title> </head>
+<body>
+    <h1>Table of Contents</h1>
+    <p style="text-indent:0pt">
+        <a href="file1.html">1st File</a> <br/>
+        <a href="file2.html">2nd File</a> <br/> 
+        ...
+    </p>
+</body>
+</html>
+```
+Then, just add this HTML file to the GUI and use the Convert button to create your e-book.
 """
     print(hlp)
 
@@ -90,12 +109,10 @@ def main():
         print("Total words: %d." % len(words))
 
         # output:
-        fileOutTxt = None
         fdOutTxt = None
-        fileOutHtml = None
         fdOutHtml = None
         rememberedLeadingLetter = None
-        alreadyOpenedFlag = False
+        onceOpenedFlag = False
 
         for word in words:
             # open right file
@@ -112,12 +129,12 @@ def main():
                     fileOutHtml = fileOut[0] + '_' + rememberedLeadingLetter + '.html'
                     fdOutTxt = open(fileOutTxt, mode='w+', encoding='utf-8')
                     fdOutHtml = open(fileOutHtml, mode='w+', encoding='utf-8')
-            elif not alreadyOpenedFlag:
+            elif not onceOpenedFlag:
                 fileOutTxt = fileOut[0] + fileOut[1]
                 fileOutHtml = fileOut[0] + '.html'
                 fdOutTxt = open(fileOutTxt, mode='w+', encoding='utf-8')
                 fdOutHtml = open(fileOutHtml, mode='w+', encoding='utf-8')
-                alreadyOpenedFlag = True
+                onceOpenedFlag = True
 
             # lookup word
             result = extractSentence(word)
