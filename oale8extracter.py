@@ -15,7 +15,7 @@ from mdict_query import IndexBuilder
 def usage():
     scriptname = os.path.basename(__file__)
     hlp = f"""
-Extract sentences from OALE8. Result format: "word[TAB]defZh[TAB]en[TAB]zh"
+Extract sentences from OALE8. Text result format: "word[TAB]defZh[TAB]en[TAB]zh"
 
 SYNOPSIS:
 {scriptname} [-i input.txt] [-o output.txt]
@@ -112,18 +112,18 @@ def formatContent(word, resultList):
     wordEnZhLineHtml = None
     if defZh is None:
         wordEnZhLineHtml = '<table width="100%">\n' + \
-                           ' <tr><td style="color:crimson; white-space: nowrap">' + word + '</td></tr>\n' + \
                            ' <tr><td>' + re.sub(word, '<strong>\g<0></strong>', sentenceEn,
                                                 flags=re.IGNORECASE) + '</td></tr>\n' + \
                            ' <tr><td>' + sentenceZh + '</td></tr>\n' + \
+                           ' <tr><td style="color:darkred; white-space: nowrap">' + word + '</td></tr>\n' + \
                            '</table>' + '\n<hr style="border:none; height:1px; background-color:lightgray;" /><br />'
     else:
         wordEnZhLineHtml = '<table width="100%">\n' + \
-                           ' <tr><td style="color:crimson; white-space: nowrap">' + word + '</td>\n' + \
-                           '  <td style="text-align:center; font-size:70%; color:royalblue;">' + defZh + '</td></tr>\n' + \
                            ' <tr><td colspan="2">' + re.sub(word, '<strong>\g<0></strong>', sentenceEn,
                                                             flags=re.IGNORECASE) + '</td></tr>\n' + \
                            ' <tr><td colspan="2">' + sentenceZh + '</td></tr>\n' + \
+                           ' <tr><td style="color:darkred; white-space: nowrap">' + word + '</td>\n' + \
+                           '  <td style="text-align:center; font-size:80%; color:royalblue;">' + defZh + '</td></tr>\n' + \
                            '</table>' + '\n<hr style="border:none; height:1px; background-color:lightgray;" /><br />'
 
     return [wordEnZhLineTxt,
