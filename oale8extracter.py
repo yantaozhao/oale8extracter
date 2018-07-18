@@ -15,7 +15,7 @@ from mdict_query import IndexBuilder
 def usage():
     scriptname = os.path.basename(__file__)
     hlp = f"""
-Extract sentences from OALE8. Text result format: "word[TAB]defZh[TAB]en[TAB]zh"
+Extract sentences from OALE8. Text result format: "word[TAB]phonic[TAB]defZh[TAB]en[TAB]zh"
 
 SYNOPSIS:
 {scriptname} [-i input.txt] [-o output.txt]
@@ -61,24 +61,60 @@ def extractSentence(w):
     :param w: word
     :return: list of specified contents, or `None` if example sentences not exist.
              If the result is not None, its format is:
+               w: word. (MUST exist)
+               phon: phonic. (Maybe None)
                defZh: definition in Chinese. (Maybe None).
-               sentenceEn: example sentence in english. (Must exist).
-               sentenceZh: translation of above sentence. (Must exist).
+               sentenceEn: example sentence in english. (MUST exist).
+               sentenceZh: translation of above sentence. (MUST exist).
     """
     global idxBuilder
     if w is None or len(w) == 0 or idxBuilder is None:
         return None
 
-    lookupResult = idxBuilder.mdx_lookup(w)
-    if len(lookupResult) == 0:
-        return None
+    soup = None
+    while True:
+        w_bak = w
+        lookupResult = idxBuilder.mdx_lookup(w)
+        if len(lookupResult) == 0:
+            return None
+        soup = BeautifulSoup(lookupResult[0], 'html5lib')
+        # check if this word is derived. if yes, find the original word:
+        derivedBlock = soup.find_all('span', class_='derived')
+        if (len(derivedBlock) == 1):
+            orig = derivedBlock[0].find_all('a', id='drv')
+            if (len(orig) > 0):
+                # w = orig[0].get_text().replace('\t', ' ').strip()  # found
+                pass
+        elif (len(derivedBlock) > 1):
+            raise RuntimeError("I am dizzy: more than one word found")  # exception
+        if (w_bak == w):
+            break  # good
 
-    soup = BeautifulSoup(lookupResult[0], 'html5lib')
+    # phonic
+    phon = None
+    for clasTxt in ('phon-gb', 'phon-usgb'):
+        phonLi = soup.find_all('span', class_=clasTxt)
+        if len(phonLi) > 0:
+            phon = phonLi[0].get_text().strip()
+            break
+        else:
+            phon = None
+
+    # meaning
     meaningGroups = soup.find_all('span', class_='n-g')
     for group in meaningGroups:
         # definition in Chinese:
         defZh = None
-        defGroups = group.find_all('span', class_='def-g')
+        defGroups = []
+        defBlocks = group.find_all('span', class_='def-g')
+        # find the definitions
+        for blk in defBlocks:
+            defGroups = blk.find_all('span', class_='d')
+            if (len(defGroups)) > 0:
+                break
+            else:
+                defGroups = []
+        # get the first definition in Chinese
         if len(defGroups) > 0:
             defZhGroups = defGroups[0].find_all('span', class_='oalecd8e_chn')
             if len(defZhGroups) > 0:
@@ -90,40 +126,46 @@ def extractSentence(w):
             sentenceZh = sGroup.find_all('span', 'oalecd8e_chn')
             if len(sentenceEn) == 0 or len(sentenceZh) == 0:
                 continue  # ensure the two sentences exist
-            return [defZh,
+            return [w, phon, defZh,
                     sentenceEn[0].get_text().replace('\t', ' ').strip(),
                     sentenceZh[0].get_text().replace('\t', ' ').strip()]
     return None
 
 
-def formatContent(word, resultList):
-    defZh = resultList[0]
-    sentenceEn = resultList[1]
-    sentenceZh = resultList[2]
+def formatContent(resultList):
+    """
+    format content, and return as list
+    :param resultList:
+    :return:
+    """
+    word = resultList[0]
+    phon = resultList[1]
+    defZh = resultList[2]
+    sentenceEn = resultList[3]
+    sentenceZh = resultList[4]
 
     # plain text:
-    wordEnZhLineTxt = None
-    if defZh is None:
-        wordEnZhLineTxt = word + '\t' + ' ' + '\t' + sentenceEn + '\t' + sentenceZh
-    else:
-        wordEnZhLineTxt = word + '\t' + defZh + '\t' + sentenceEn + '\t' + sentenceZh
+    wordEnZhLineTxt = word + '\t' + (('[' + phon + ']') if phon is not None else ' ') + '\t' + (defZh if defZh is not None else ' ') + '\t' + sentenceEn + '\t' + sentenceZh
 
     # html:
     wordEnZhLineHtml = None
-    if defZh is None:
+    if phon is None and defZh is None:
         wordEnZhLineHtml = '<table width="100%">\n' + \
-                           ' <tr><td>' + re.sub(word, '<strong>\g<0></strong>', sentenceEn,
+                           ' <tr><td>' + re.sub(word, '<i><strong>\g<0></strong></i>', sentenceEn,
                                                 flags=re.IGNORECASE) + '</td></tr>\n' + \
                            ' <tr><td>' + sentenceZh + '</td></tr>\n' + \
                            ' <tr><td style="color:darkred; white-space: nowrap">' + word + '</td></tr>\n' + \
                            '</table>' + '\n<hr style="border:none; height:1px; background-color:lightgray;" /><br />'
     else:
         wordEnZhLineHtml = '<table width="100%">\n' + \
-                           ' <tr><td colspan="2">' + re.sub(word, '<strong>\g<0></strong>', sentenceEn,
+                           ' <tr><td colspan="2">' + re.sub(word, '<i><strong>\g<0></strong></i>', sentenceEn,
                                                             flags=re.IGNORECASE) + '</td></tr>\n' + \
                            ' <tr><td colspan="2">' + sentenceZh + '</td></tr>\n' + \
                            ' <tr><td style="color:darkred; white-space: nowrap">' + word + '</td>\n' + \
-                           '  <td style="text-align:center; font-size:80%; color:royalblue;">' + defZh + '</td></tr>\n' + \
+                           '  <td style="text-align:center; font-size:80%; color:royalblue;"><pre>' + \
+                              (('[' + phon + ']') if phon is not None else '') + \
+                              ('  ' if (phon is not None and defZh is not None) else '') + \
+                              (defZh if defZh is not None else '') + '</pre></td></tr>\n' + \
                            '</table>' + '\n<hr style="border:none; height:1px; background-color:lightgray;" /><br />'
 
     return [wordEnZhLineTxt,
@@ -174,7 +216,7 @@ def main():
         fdOutTxt = None
         fdOutHtml = None
         rememberedLeadingLetter = None
-        onceOpenedFlag = False
+        fileOpenedFlag = False
 
         for word in words:
             # open right file
@@ -189,19 +231,19 @@ def main():
                     rememberedLeadingLetter = word[0].lower()
                     fileOutTxt = fileOut[0] + '_' + rememberedLeadingLetter + fileOut[1]
                     fileOutHtml = fileOut[0] + '_' + rememberedLeadingLetter + '.html'
-                    fdOutTxt = open(fileOutTxt, mode='w+', encoding='utf-8')
-                    fdOutHtml = open(fileOutHtml, mode='w+', encoding='utf-8')
-            elif not onceOpenedFlag:
+                    fdOutTxt = open(fileOutTxt, mode='a+', encoding='utf-8')
+                    fdOutHtml = open(fileOutHtml, mode='a+', encoding='utf-8')
+            elif not fileOpenedFlag:
                 fileOutTxt = fileOut[0] + fileOut[1]
                 fileOutHtml = fileOut[0] + '.html'
-                fdOutTxt = open(fileOutTxt, mode='w+', encoding='utf-8')
-                fdOutHtml = open(fileOutHtml, mode='w+', encoding='utf-8')
-                onceOpenedFlag = True
+                fdOutTxt = open(fileOutTxt, mode='a+', encoding='utf-8')
+                fdOutHtml = open(fileOutHtml, mode='a+', encoding='utf-8')
+                fileOpenedFlag = True
 
             # lookup word
             result = extractSentence(word)
             if result is not None:
-                markupResult = formatContent(word, result)
+                markupResult = formatContent(result)
                 if markupResult[0] is not None:
                     fdOutTxt.write(markupResult[0] + '\n')
                 if markupResult[1] is not None:
@@ -219,7 +261,7 @@ def main():
                     fdOutHtml.close()
 
         if len(failWords) > 0:
-            with open(fileOut[0] + fileOut[1] + '.fail', 'w+', encoding='utf-8') as fdFailTxt:
+            with open(fileOut[0] + fileOut[1] + '.fail', 'a+', encoding='utf-8') as fdFailTxt:
                 for word in failWords:
                     fdFailTxt.write(word + '\n')
     # done
